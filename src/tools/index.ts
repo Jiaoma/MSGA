@@ -36,7 +36,22 @@ Example: read_function file="lib/calculator.py" name="add"`,
     const fullPath = path.resolve(file);
     const content = await fs.readFile(fullPath, 'utf-8');
 
-    // Simple regex-based function extraction (tree-sitter in Phase 3)
+    // Try tree-sitter first (precise)
+    try {
+      const { findSymbol } = await import('../core/code-parser.js');
+      const sym = findSymbol(fullPath, content, name);
+      if (sym) {
+        return {
+          code: sym.text,
+          language: fullPath.endsWith('.py') ? 'python' : 'typescript',
+          startLine: sym.startRow,
+          endLine: sym.endRow,
+          file,
+        };
+      }
+    } catch { /* tree-sitter not available, fallback to regex */ }
+
+    // Fallback: regex-based extraction
     const patterns = [
       // JS/TS: function name(...) { ... }
       new RegExp(
@@ -392,7 +407,30 @@ Example: list_symbols file="src/auth.ts"`,
   execute: async ({ file, type }) => {
     const fs = await import('fs/promises');
     const path = await import('path');
-    const content = await fs.readFile(path.resolve(file), 'utf-8');
+    const fullPath = path.resolve(file);
+    const content = await fs.readFile(fullPath, 'utf-8');
+
+    // Try tree-sitter first
+    try {
+      const { parseFile } = await import('../core/code-parser.js');
+      const structure = parseFile(fullPath, content);
+      if (structure) {
+        let syms = structure.symbols;
+        if (type === 'function') syms = syms.filter(s => s.kind === 'function');
+        if (type === 'class') syms = syms.filter(s => s.kind === 'class');
+        return {
+          file,
+          symbols: syms.map(s => ({
+            name: s.name,
+            kind: s.kind,
+            line: s.startRow,
+            ...(s.children?.length ? { methods: s.children.map(c => ({ name: c.name, line: c.startRow })) } : {}),
+          })),
+        };
+      }
+    } catch { /* fallback to regex */ }
+
+    // Fallback: regex-based
     const lines = content.split('\n');
     const symbols: Array<{ name: string; kind: string; line: number }> = [];
 
