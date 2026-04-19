@@ -7,6 +7,8 @@
 import { Command } from 'commander';
 import { ExecutionEngine } from './core/engine.js';
 import { ModelRegistry } from './models/registry.js';
+import { reviewFile } from './core/reviewer.js';
+import { listSessions, loadSession } from './core/session.js';
 import * as readline from 'readline';
 
 const VERSION = '0.1.0';
@@ -139,6 +141,63 @@ program
     for (const role of ['router', 'coder', 'tester', 'reviewer', 'planner']) {
       const provider = registry.get(role as any);
       console.log(`  ${role}: ${provider.config.model} @ ${provider.config.baseUrl}`);
+    }
+  });
+
+// Review command
+program
+  .command('review')
+  .description('Review code files')
+  .argument('<files...>', 'Files to review')
+  .option('-m, --model <model>', 'Model for review')
+  .option('--base-url <url>', 'API base URL', 'http://127.0.0.1:8000/v1')
+  .action(async (files: string[], opts: any) => {
+    const registry = ModelRegistry.fromConfig({ baseUrl: opts.baseUrl });
+    const reviewer = registry.get('reviewer');
+    const fs = await import('fs/promises');
+
+    console.log(`🔍 Reviewing ${files.length} file(s)...\n`);
+
+    for (const file of files) {
+      try {
+        const content = await fs.readFile(file, 'utf-8');
+        const result = await reviewFile(file, content, reviewer, {
+          onProgress: (msg) => console.log(`  ${msg}`),
+        });
+
+        console.log(`\n📄 ${file} — Score: ${result.score}/10`);
+        for (const issue of result.issues) {
+          const icon = issue.severity === 'error' ? '❌' : issue.severity === 'warning' ? '⚠️' : '💡';
+          console.log(`  ${icon} L${issue.line}: ${issue.message}`);
+          if (issue.suggestion) console.log(`     → ${issue.suggestion}`);
+        }
+        if (result.strengths.length > 0) {
+          console.log(`  ✨ Strengths: ${result.strengths.join(', ')}`);
+        }
+      } catch (e: any) {
+        console.error(`  ❌ ${file}: ${e.message}`);
+      }
+    }
+  });
+
+// Sessions command
+program
+  .command('sessions')
+  .description('List saved sessions')
+  .option('-l, --limit <n>', 'Max sessions to show', '10')
+  .action(async (opts: any) => {
+    const sessions = listSessions(Number.parseInt(opts.limit));
+    if (sessions.length === 0) {
+      console.log('No saved sessions.');
+      return;
+    }
+    console.log(`📋 Saved sessions (${sessions.length}):\n`);
+    for (const s of sessions) {
+      const date = s.updatedAt ? new Date(s.updatedAt).toLocaleString() : '(unknown)';
+      console.log(`  ${s.id}`);
+      console.log(`    Task: ${s.task}`);
+      console.log(`    Date: ${date} | Dir: ${s.workingDir}`);
+      console.log('');
     }
   });
 

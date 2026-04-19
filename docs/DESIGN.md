@@ -341,6 +341,9 @@ Step 8: 执行 Atom 8 (审查)
 - [ ] MCP 协议支持
 
 ### Phase 4: 生态
+- [x] 代码审查模式 (src/core/reviewer.ts)
+- [x] 会话持久化与恢复 (src/core/session.ts)
+- [x] MCP 协议支持 (src/core/mcp-client.ts)
 - [ ] VSCode 扩展
 - [ ] 模型配置市场
 - [ ] 工具插件系统
