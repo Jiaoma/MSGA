@@ -16,6 +16,10 @@ import type { ToolCall } from '../models/provider.js';
 import type { ToolDefinition } from '../models/provider.js';
 import { ALL_TOOLS, getToolsAsOpenAIFormat } from '../tools/index.js';
 import { validateToolCall } from './validator.js';
+import { Planner } from './planner.js';
+import { ParallelExecutor } from './parallel-executor.js';
+import type { Plan, AtomResult } from './planner.js';
+import { ModelRegistry } from '../models/registry.js';
 import { z } from 'zod';
 
 const SYSTEM_PROMPT = `You are MSGA, a coding assistant optimized for small language models.
@@ -172,6 +176,90 @@ export class ExecutionEngine {
       const result = await this.execute(input);
       // History is managed by ContextManager
     }
+  }
+
+  /**
+   * Execute a task with multi-model orchestration (Phase 2).
+   * Planner decomposes → ParallelExecutor runs atoms → returns summary.
+   */
+  async executeWithPlan(
+    task: string,
+    registry: ModelRegistry,
+    projectFiles?: string[]
+  ): Promise<string> {
+    process.chdir(this.workingDir);
+
+    const plannerProvider = registry.get('planner');
+    const planner = new Planner(plannerProvider);
+
+    // Step 1: Plan
+    const plan = await planner.plan(task, projectFiles);
+    const atomCount = plan.atoms.length;
+    const groups = plan.parallelGroups.length;
+
+    this.callbacks.onContent?.(`📋 Plan: ${atomCount} atoms in ${groups} stages\n`);
+    for (const atom of plan.atoms) {
+      this.callbacks.onContent?.(`  ${atom.id} [${atom.type}] ${atom.description.slice(0, 60)}\n`);
+    }
+    this.callbacks.onContent?.('\n');
+
+    // Step 2: Execute
+    const executor = new ParallelExecutor(registry, {
+      onAtomStart: (atom) => {
+        this.callbacks.onContent?.(`⏳ ${atom.id} [${atom.type}] ${atom.description.slice(0, 50)}...\n`);
+      },
+      onAtomComplete: (atom, result) => {
+        this.callbacks.onContent?.(`  ✅ ${atom.id} done (${result.durationMs}ms)\n`);
+      },
+      onAtomError: (atom, err) => {
+        this.callbacks.onContent?.(`  ❌ ${atom.id} failed: ${err.message.slice(0, 80)}\n`);
+      },
+      onProgress: (done, total) => {
+        this.callbacks.onContent?.(`  Progress: ${done}/${total}\n`);
+      },
+      onToolCall: (atomId, toolName, args) => {
+        this.callbacks.onToolCall?.(toolName, args);
+      },
+    });
+
+    const results = await executor.execute(plan);
+
+    // Step 3: Summarize
+    const summary = this.summarizeResults(plan, results);
+    this.callbacks.onContent?.('\n' + summary);
+
+    return summary;
+  }
+
+  /**
+   * Summarize execution results
+   */
+  private summarizeResults(plan: Plan, results: Map<string, AtomResult>): string {
+    const succeeded = Array.from(results.values()).filter(r => r.success).length;
+    const failed = results.size - succeeded;
+    const totalMs = Array.from(results.values()).reduce((sum, r) => sum + r.durationMs, 0);
+
+    let summary = `─── Execution Summary ───\n`;
+    summary += `Total: ${results.size} tasks | ✅ ${succeeded} passed | ❌ ${failed} failed | ⏱ ${totalMs}ms\n`;
+
+    const allFiles = new Set<string>();
+    for (const result of results.values()) {
+      for (const f of result.filesModified) allFiles.add(f);
+    }
+    if (allFiles.size > 0) {
+      summary += `Files modified: ${[...allFiles].join(', ')}\n`;
+    }
+
+    // Show key results
+    for (const atom of plan.atoms) {
+      const r = results.get(atom.id);
+      if (r) {
+        const icon = r.success ? '✅' : '❌';
+        summary += `${icon} ${atom.id}: ${r.output.slice(0, 100)}\n`;
+      }
+    }
+
+    return summary;
   }
 
   private async callModel(messages: Message[]) {

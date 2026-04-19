@@ -25,6 +25,7 @@ program
   .option('--api-key <key>', 'API key')
   .option('-d, --dir <path>', 'Working directory', process.cwd())
   .option('-v, --verbose', 'Verbose output')
+  .option('-p, --plan', 'Use multi-model planning mode (Phase 2)')
   .action(async (task: string | undefined, opts: any) => {
     const registry = ModelRegistry.fromConfig({
       baseUrl: opts.baseUrl,
@@ -63,7 +64,12 @@ program
       });
 
       try {
-        const result = await engine.execute(task);
+        if (opts.plan) {
+          // Multi-model orchestration mode
+          await engine.executeWithPlan(task, registry);
+        } else {
+          await engine.execute(task);
+        }
         console.log('\n' + '─'.repeat(50));
         console.log('Done! ✨');
       } catch (e: any) {
