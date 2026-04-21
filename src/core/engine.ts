@@ -14,7 +14,7 @@ import { ContextManager, DEFAULT_BUDGET } from '../context/manager.js';
 import type { ModelProvider } from '../models/provider.js';
 import type { ToolCall } from '../models/provider.js';
 import type { ToolDefinition } from '../models/provider.js';
-import { ALL_TOOLS, getToolsAsOpenAIFormat } from '../tools/index.js';
+import { ALL_TOOLS, getToolsAsOpenAIFormat, zodToJsonSchema } from '../tools/index.js';
 import { validateToolCall } from './validator.js';
 import { Planner } from './planner.js';
 import { ParallelExecutor } from './parallel-executor.js';
@@ -293,8 +293,13 @@ export class ExecutionEngine {
   }
 
   private async callModel(messages: Message[]) {
-    const toolsFormatted = getToolsAsOpenAIFormat();
-    return this.provider.chat(messages, toolsFormatted as any);
+    // Pass raw tool definitions (ToolDef objects), provider handles formatting
+    const toolDefs: import('../models/provider.js').ToolDefinition[] = ALL_TOOLS.map(t => ({
+      name: t.name,
+      description: t.description,
+      parameters: zodToJsonSchema(t.inputSchema),
+    }));
+    return this.provider.chat(messages, toolDefs);
   }
 
   /**

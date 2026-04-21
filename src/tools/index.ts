@@ -625,7 +625,7 @@ export function getToolsAsOpenAIFormat(): Array<{
   }));
 }
 
-function zodToJsonSchema(schema: z.ZodType): Record<string, unknown> {
+export function zodToJsonSchema(schema: z.ZodType): Record<string, unknown> {
   // Simplified Zod → JSON Schema conversion
   if (schema instanceof z.ZodObject) {
     const properties: Record<string, unknown> = {};
