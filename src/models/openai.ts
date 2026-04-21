@@ -31,11 +31,12 @@ export class OpenAIProvider implements ModelProvider {
 
     const body: Record<string, unknown> = {
       model: this.config.model,
-      messages: messages.map(m => ({
-        role: m.role,
-        content: m.content,
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-      })),
+      messages: messages.map(m => {
+        const msg: Record<string, unknown> = { role: m.role, content: m.content };
+        if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
+        if ('tool_calls' in m && m.tool_calls) msg.tool_calls = m.tool_calls;
+        return msg;
+      }),
       max_tokens: this.config.maxTokens,
       temperature: this.config.temperature,
     };
@@ -49,6 +50,7 @@ export class OpenAIProvider implements ModelProvider {
           parameters: t.parameters,
         },
       }));
+      body.tool_choice = 'auto';
     }
 
     const resp = await fetch(url, {
@@ -101,11 +103,12 @@ export class OpenAIProvider implements ModelProvider {
 
     const body: Record<string, unknown> = {
       model: this.config.model,
-      messages: messages.map(m => ({
-        role: m.role,
-        content: m.content,
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-      })),
+      messages: messages.map(m => {
+        const msg: Record<string, unknown> = { role: m.role, content: m.content };
+        if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
+        if ('tool_calls' in m && m.tool_calls) msg.tool_calls = m.tool_calls;
+        return msg;
+      }),
       max_tokens: this.config.maxTokens,
       temperature: this.config.temperature,
       stream: true,
@@ -120,6 +123,7 @@ export class OpenAIProvider implements ModelProvider {
           parameters: t.parameters,
         },
       }));
+      body.tool_choice = 'auto';
     }
 
     const resp = await fetch(url, {

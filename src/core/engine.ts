@@ -22,14 +22,26 @@ import type { Plan, AtomResult } from './planner.js';
 import { ModelRegistry } from '../models/registry.js';
 import { z } from 'zod';
 
-const SYSTEM_PROMPT = `You are MSGA, a coding assistant optimized for small language models.
-You help with software design, coding, and testing.
+const SYSTEM_PROMPT = `You are MSGA, a coding assistant. You MUST use tools to accomplish tasks. NEVER output code directly in text.
 
-Rules:
-- Use the provided tools to read, write, and test code
-- Call one tool at a time
-- Be precise with tool parameters
-- When done, summarize what you did`;
+CRITICAL RULES:
+1. To create or write a file: call write_file tool
+2. To read a file: call read_file tool
+3. To run a command: call bash tool
+4. To search code: call search_code tool
+5. NEVER write code in markdown blocks - always use write_file tool
+6. ALWAYS call at least one tool per response
+
+Example of CORRECT behavior:
+User: "Create a hello.py file"
+Assistant: calls write_file(path="hello.py", content="print('hello')")
+
+Example of WRONG behavior (NEVER do this):
+User: "Create a hello.py file"
+Assistant: \`\`\`python\nprint('hello')\n\`\`\`
+This is wrong because you should use the write_file tool instead.
+
+Always use tools. Do not output raw code.`;
 
 const MAX_TOOL_ROUNDS = 10;
 
@@ -94,6 +106,24 @@ export class ExecutionEngine {
       if (!response.toolCalls || response.toolCalls.length === 0) {
         lastResponse = response.content || '';
         this.callbacks.onContent?.('\n' + lastResponse);
+
+        // Fallback 1: Auto-extract code blocks and write to files
+        const autoWritten = await this.autoExtractCode(lastResponse, task);
+        if (autoWritten) {
+          this.callbacks.onContent?.('\n\n📦 Auto-extracted and wrote file(s): ' + autoWritten.join(', '));
+          break;
+        }
+
+        // Fallback 2: If first round with no tools, nudge the model to retry
+        if (round === 0) {
+          this.callbacks.onContent?.('\n\n⚠️ Model did not use tools. Retrying with stronger instruction...');
+          messages.push({ role: 'assistant', content: lastResponse });
+          messages.push({
+            role: 'user',
+            content: 'IMPORTANT: You MUST call a tool. Do NOT output code in text. Use write_file to create files, or bash to run commands. Try again now.',
+          });
+          continue;
+        }
         break;
       }
 
@@ -265,5 +295,81 @@ export class ExecutionEngine {
   private async callModel(messages: Message[]) {
     const toolsFormatted = getToolsAsOpenAIFormat();
     return this.provider.chat(messages, toolsFormatted as any);
+  }
+
+  /**
+   * Auto-extract code blocks from model text output and write to files.
+   * Returns list of files written, or null if nothing to extract.
+   */
+  private async autoExtractCode(text: string, task: string): Promise<string[] | null> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const writtenFiles: string[] = [];
+
+    // Strategy 1: Extract write_file pseudo-calls from text
+    // Model may output as: write_file(path="f", content="...") OR <write_file path="f" content="...">
+    for (const pattern of [
+      /write_file\s*\(\s*path\s*=\s*["']([^"']+)["']\s*,\s*content\s*=\s*["']/g,
+      /<write_file\s+path\s*=\s*["']([^"']+)["']\s+content\s*=\s*["']/g,
+    ]) {
+      pattern.lastIndex = 0;
+      let wfMatch;
+      while ((wfMatch = pattern.exec(text)) !== null) {
+        const filePath = wfMatch[1];
+        const contentStart = wfMatch.index + wfMatch[0].length;
+        const rest = text.slice(contentStart);
+        // Find closing: " followed by ) or > or \n
+        const closeIdx = rest.search(/"\s*(?:\)|>)/);
+        if (closeIdx === -1) continue;
+        let code = rest.slice(0, closeIdx);
+        code = code
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t')
+          .replace(/\\"/g, '"')
+          .replace(/\\'/g, "'")
+          .replace(/\\\\/g, '\\');
+        if (code.length > 20) {
+          const fullPath = path.resolve(filePath);
+          await fs.mkdir(path.dirname(fullPath), { recursive: true });
+          await fs.writeFile(fullPath, code, 'utf-8');
+          writtenFiles.push(filePath);
+        }
+      }
+      if (writtenFiles.length > 0) return writtenFiles;
+    }
+    if (writtenFiles.length > 0) return writtenFiles;
+
+    // Strategy 2: Extract fenced code blocks
+    const codeBlockRegex = /```(\w*)\s*\n([\s\S]*?)```/g;
+    const blocks: Array<{ lang: string; code: string }> = [];
+    let match;
+    while ((match = codeBlockRegex.exec(text)) !== null) {
+      const code = match[2].trim();
+      if (code.length < 10) continue;
+      blocks.push({ lang: match[1]?.toLowerCase() || '', code });
+    }
+    if (blocks.length === 0) return null;
+
+    const langToExt: Record<string, string> = {
+      python: '.py', py: '.py', javascript: '.js', js: '.js', typescript: '.ts',
+      html: '.html', css: '.css', json: '.json', bash: '.sh', java: '.java',
+    };
+
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+      // Skip if it looks like a tool call, not real code
+      if (block.code.startsWith('write_file(') || block.code.startsWith('read_file(') || block.code.startsWith('bash(')) continue;
+      const ext = langToExt[block.lang] || '.txt';
+      const baseName = task.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20).replace(/_+$/, '');
+      const filename = blocks.length === 1 ? `${baseName}${ext}` : `${baseName}_${i + 1}${ext}`;
+      if (block.code.split('\n').length >= 5) {
+        const fullPath = path.resolve(filename);
+        await fs.mkdir(path.dirname(fullPath), { recursive: true });
+        await fs.writeFile(fullPath, block.code, 'utf-8');
+        writtenFiles.push(filename);
+      }
+    }
+
+    return writtenFiles.length > 0 ? writtenFiles : null;
   }
 }

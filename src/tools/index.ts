@@ -464,6 +464,48 @@ Example: list_symbols file="src/auth.ts"`,
 };
 
 /**
+ * Write a complete file (create or overwrite).
+ */
+export const write_fileTool: ToolDef = {
+  name: 'write_file',
+  description: `Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Use this to create new files.
+Example: write_file path="src/main.py" content="print('hello')"
+Example: write_file path="README.md" content="# My Project"`,
+  inputSchema: z.object({
+    path: z.string().describe('File path relative to project root'),
+    content: z.string().describe('Complete file content to write'),
+  }),
+  execute: async ({ path: filePath, content }) => {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const fullPath = path.resolve(filePath);
+    // Ensure parent directory exists
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, content, 'utf-8');
+    return { success: true, file: filePath, size: content.length };
+  },
+};
+
+/**
+ * Read an entire file.
+ */
+export const read_fileTool: ToolDef = {
+  name: 'read_file',
+  description: `Read the entire content of a file.
+Example: read_file path="src/main.py"`,
+  inputSchema: z.object({
+    path: z.string().describe('File path relative to project root'),
+  }),
+  execute: async ({ path: filePath }) => {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const fullPath = path.resolve(filePath);
+    const content = await fs.readFile(fullPath, 'utf-8');
+    return { content, file: filePath, lines: content.split('\n').length };
+  },
+};
+
+/**
  * Execute a bash command.
  */
 export const bashTool: ToolDef = {
@@ -553,6 +595,11 @@ function extractBlock(content: string, startIndex: number): string {
  * All tools registry
  */
 export const ALL_TOOLS: ToolDef[] = [
+  write_fileTool,
+  read_fileTool,
+  bashTool,
+  searchCodeTool,
+  listSymbolsTool,
   readFunctionTool,
   readClassTool,
   addFunctionTool,
@@ -562,9 +609,6 @@ export const ALL_TOOLS: ToolDef[] = [
   runTestFileTool,
   runTestCaseTool,
   getDiagnosticsTool,
-  listSymbolsTool,
-  bashTool,
-  searchCodeTool,
 ];
 
 export function getToolsAsOpenAIFormat(): Array<{
