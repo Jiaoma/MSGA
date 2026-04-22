@@ -112,21 +112,74 @@ msga --version
 
 ### 配置模型
 
+MSGA 使用 OpenAI 兼容 API，支持 oMLX、Ollama、LM Studio 等本地模型服务。
+
+#### 模型角色
+
+MSGA 内置 5 个模型角色，不同任务自动路由到对应模型：
+
+| 角色 | 默认模型 | 用途 | 建议大小 |
+|------|---------|------|----------|
+| `router` | qwen3-4b | 任务路由/分类 | 3-4B |
+| `coder` | qwen3-coder-7b | 代码编写 | 7-14B |
+| `tester` | qwen3-coder-7b | 测试生成 | 7B |
+| `reviewer` | qwen3-14b | 代码审查 | 14-30B |
+| `planner` | qwen3-14b | 任务规划 | 14-30B |
+
+#### 持久化配置
+
+配置存储在 `~/.msga/config.json`，通过 `msga config` 管理：
+
 ```bash
-# 指向本地 oMLX / Ollama
-msga config set router.model "http://localhost:8000/v1"
-msga config set coder.model "http://localhost:11434/v1"
+# 设置默认 API 地址（默认 http://127.0.0.1:8000/v1）
+msga config set baseUrl http://localhost:11434/v1
+
+# 设置 API Key（使用远程服务时）
+msga config set apiKey sk-your-key
+
+# 查看当前所有配置
+msga config get
+
+# 查看单个配置项
+msga config get baseUrl
+```
+
+#### 命令行参数（临时覆盖）
+
+```bash
+# 指定模型（所有角色使用同一模型）
+msga -m qwen3-14b "实现用户登录"
+
+# 指定 API 地址
+msga --base-url http://localhost:11434/v1 "写个排序函数"
+
+# 指定 API Key
+msga --api-key sk-xxx --base-url https://api.example.com/v1 "任务"
+```
+
+#### 多模型编排模式
+
+加 `-p` 启用多模型协作，不同任务自动分配给不同角色模型：
+
+```bash
+msga -p "设计并实现用户认证系统"
 ```
 
 ### 使用
 
 ```bash
-# 在项目中使用
+# 单次任务
 cd your-project
 msga "设计用户认证系统并实现"
 
-# 或者交互模式
+# 多模型编排模式
+msga -p "重构整个模块"
+
+# 交互模式
 msga
+
+# 指定工作目录
+msga -d /path/to/project "修复 bug"
 ```
 
 ## 📁 项目结构
