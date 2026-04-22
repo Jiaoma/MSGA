@@ -90,14 +90,37 @@ SLM 输出经过 JSON Schema 校验，格式错误自动修复而非重试。
 
 ## 🚀 快速开始
 
-```bash
-# 安装
-npm install -g msga
+### 从源码安装
 
-# 配置模型（指向本地 oMLX / Ollama）
+```bash
+# 克隆仓库
+git clone https://github.com/your-org/msga.git
+cd msga
+
+# 构建项目（必须，生成 dist/ 目录）
+npm run build
+
+# 全局安装
+npm install -g .
+
+# 验证安装
+msga --version
+```
+
+> ⚠️ **必须先 `npm run build` 再 `npm install -g .`**
+> 项目使用 TypeScript，`bin` 入口指向编译后的 `dist/cli.js`。跳过构建步骤会导致 `msga` 命令不可用。
+
+### 配置模型
+
+```bash
+# 指向本地 oMLX / Ollama
 msga config set router.model "http://localhost:8000/v1"
 msga config set coder.model "http://localhost:11434/v1"
+```
 
+### 使用
+
+```bash
 # 在项目中使用
 cd your-project
 msga "设计用户认证系统并实现"
