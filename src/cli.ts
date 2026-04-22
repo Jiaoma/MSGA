@@ -29,18 +29,40 @@ program
   .option('-v, --verbose', 'Verbose output')
   .option('-p, --plan', 'Use multi-model planning mode (Phase 2)')
   .action(async (task: string | undefined, opts: any) => {
+    // Load persisted config
+    const fs = await import('fs');
+    const path = await import('path');
+    const configPath = path.join(process.env.HOME || '~', '.msga', 'config.json');
+    let savedConfig: Record<string, string> = {};
+    try {
+      savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    } catch {}
+
+    const configBaseUrl = opts.baseUrl || savedConfig.baseUrl;
+    const configApiKey = opts.apiKey || savedConfig.apiKey;
+    const configModel = opts.model || savedConfig.model;
+
+    // Per-role model overrides (e.g., model.router, model.coder)
+    const roleModels: Record<string, Partial<{ model: string }>> = {};
+    for (const role of ['router', 'coder', 'tester', 'reviewer', 'planner'] as const) {
+      const roleModel = savedConfig[`model.${role}`];
+      if (roleModel) roleModels[role] = { model: roleModel };
+    }
+
     const registry = ModelRegistry.fromConfig({
-      baseUrl: opts.baseUrl,
-      apiKey: opts.apiKey,
-      models: opts.model
+      baseUrl: configBaseUrl,
+      apiKey: configApiKey,
+      models: configModel
         ? {
-            coder: { model: opts.model },
-            router: { model: opts.model },
-            tester: { model: opts.model },
-            reviewer: { model: opts.model },
-            planner: { model: opts.model },
+            coder: { model: configModel },
+            router: { model: configModel },
+            tester: { model: configModel },
+            reviewer: { model: configModel },
+            planner: { model: configModel },
           }
-        : undefined,
+        : Object.keys(roleModels).length > 0
+          ? roleModels
+          : undefined,
     });
 
     const provider = registry.get('coder');
