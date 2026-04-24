@@ -9,6 +9,21 @@ import { ExecutionEngine } from './core/engine.js';
 import { ModelRegistry } from './models/registry.js';
 import { reviewFile } from './core/reviewer.js';
 import { listSessions, loadSession } from './core/session.js';
+import {
+  loadConfig,
+  saveConfig,
+  showConfig,
+  quickSetup,
+  interactiveModelSetup,
+  interactiveRoleSetup,
+  setModelProfile,
+  removeModelProfile,
+  setRole,
+  resolveRole,
+  ALL_ROLES,
+  type ModelRole,
+  type MsgaConfig,
+} from './config.js';
 import * as readline from 'readline';
 
 const VERSION = '0.1.0';
@@ -20,51 +35,67 @@ program
   .description('MSGA - AI coding agent optimized for small language models')
   .version(VERSION);
 
+// ─── Main action: build ModelRegistry from new config system ────
+
+function buildRegistry(opts: { baseUrl?: string; apiKey?: string; model?: string }): ModelRegistry {
+  const config = loadConfig();
+  let baseUrl = opts.baseUrl || undefined;
+  let apiKey = opts.apiKey || undefined;
+  let model = opts.model || undefined;
+
+  // CLI flags take priority; fall back to new config's role resolution, then defaults
+  if (model) {
+    // Single --model flag: all roles use this model
+    return ModelRegistry.fromConfig({
+      baseUrl: baseUrl || 'http://127.0.0.1:8000/v1',
+      apiKey,
+      models: Object.fromEntries(
+        ALL_ROLES.map(r => [r, { model }])
+      ) as any,
+    });
+  }
+
+  // Try resolving each role from the new config
+  const resolved: Partial<Record<ModelRole, { model: string; baseUrl?: string; apiKey?: string }>> = {};
+  let hasResolved = false;
+  for (const role of ALL_ROLES) {
+    const r = resolveRole(config, role);
+    if (r) {
+      resolved[role] = { model: r.model, baseUrl: r.baseUrl, apiKey: r.apiKey };
+      hasResolved = true;
+    }
+  }
+
+  if (hasResolved) {
+    // Use the first resolved profile's baseUrl/apiKey as defaults if not overridden by CLI
+    const firstResolved = Object.values(resolved)[0];
+    const regBaseUrl = baseUrl || firstResolved?.baseUrl || 'http://127.0.0.1:8000/v1';
+    const regApiKey = apiKey || firstResolved?.apiKey;
+
+    return ModelRegistry.fromConfig({
+      baseUrl: regBaseUrl,
+      apiKey: regApiKey,
+      models: resolved as any,
+    });
+  }
+
+  // No config at all — use defaults
+  return ModelRegistry.fromConfig({
+    baseUrl: baseUrl || 'http://127.0.0.1:8000/v1',
+    apiKey,
+  });
+}
+
 program
   .argument('[task]', 'Task to execute')
-  .option('-m, --model <model>', 'Model to use (default: from config)')
-  .option('--base-url <url>', 'API base URL', 'http://127.0.0.1:8000/v1')
+  .option('-m, --model <model>', 'Model to use (overrides config, all roles)')
+  .option('--base-url <url>', 'API base URL')
   .option('--api-key <key>', 'API key')
   .option('-d, --dir <path>', 'Working directory', process.cwd())
   .option('-v, --verbose', 'Verbose output')
   .option('-p, --plan', 'Use multi-model planning mode (Phase 2)')
   .action(async (task: string | undefined, opts: any) => {
-    // Load persisted config
-    const fs = await import('fs');
-    const path = await import('path');
-    const configPath = path.join(process.env.HOME || '~', '.msga', 'config.json');
-    let savedConfig: Record<string, string> = {};
-    try {
-      savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    } catch {}
-
-    const configBaseUrl = opts.baseUrl || savedConfig.baseUrl;
-    const configApiKey = opts.apiKey || savedConfig.apiKey;
-    const configModel = opts.model || savedConfig.model;
-
-    // Per-role model overrides (e.g., model.router, model.coder)
-    const roleModels: Record<string, Partial<{ model: string }>> = {};
-    for (const role of ['router', 'coder', 'tester', 'reviewer', 'planner'] as const) {
-      const roleModel = savedConfig[`model.${role}`];
-      if (roleModel) roleModels[role] = { model: roleModel };
-    }
-
-    const registry = ModelRegistry.fromConfig({
-      baseUrl: configBaseUrl,
-      apiKey: configApiKey,
-      models: configModel
-        ? {
-            coder: { model: configModel },
-            router: { model: configModel },
-            tester: { model: configModel },
-            reviewer: { model: configModel },
-            planner: { model: configModel },
-          }
-        : Object.keys(roleModels).length > 0
-          ? roleModels
-          : undefined,
-    });
-
+    const registry = buildRegistry(opts);
     const provider = registry.get('coder');
 
     if (task) {
@@ -89,7 +120,6 @@ program
 
       try {
         if (opts.plan) {
-          // Multi-model orchestration mode
           await engine.executeWithPlan(task, registry);
         } else {
           await engine.execute(task);
@@ -101,80 +131,234 @@ program
         process.exit(1);
       }
     } else {
-      // Interactive mode
       await interactiveMode(provider, opts);
     }
   });
 
-// Config command
-program
+// ─── Config command ──────────────────────────────────────
+
+const configCmd = program
   .command('config')
-  .description('Manage MSGA configuration')
-  .addCommand(
-    new Command('set')
-      .description('Set a config value')
-      .argument('<key>', 'Config key (e.g., baseUrl, model)')
-      .argument('<value>', 'Config value')
-      .action(async (key: string, value: string) => {
-        const fs = await import('fs');
-        const path = await import('path');
-        const configPath = path.join(process.env.HOME || '~', '.msga', 'config.json');
-        let config: Record<string, string> = {};
+  .description('Manage MSGA configuration');
 
-        try {
-          config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        } catch {}
+configCmd
+  .command('show')
+  .description('Show current configuration')
+  .action(() => {
+    const config = loadConfig();
+    showConfig(config);
+  });
 
-        config[key] = value;
-        fs.mkdirSync(path.dirname(configPath), { recursive: true });
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-        console.log(`✅ Set ${key} = ${value}`);
-      })
-  )
-  .addCommand(
-    new Command('get')
-      .description('Get a config value')
-      .argument('[key]', 'Config key')
-      .action(async (key?: string) => {
-        const fs = await import('fs');
-        const path = await import('path');
-        const configPath = path.join(process.env.HOME || '~', '.msga', 'config.json');
+configCmd
+  .command('set')
+  .description('Set a config value (key=value)')
+  .argument('<key>', 'Config key (baseUrl, apiKey, model, model.<role>, profile.<name>.<field>)')
+  .argument('<value>', 'Config value')
+  .action(async (key: string, value: string) => {
+    const config = loadConfig();
 
-        try {
-          const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-          if (key) {
-            console.log(config[key] || '(not set)');
-          } else {
-            console.log(JSON.stringify(config, null, 2));
-          }
-        } catch {
-          console.log('(no config)');
+    // Handle model.<role> = <profileName>
+    if (key.startsWith('model.')) {
+      const role = key.slice(6) as ModelRole;
+      if (!ALL_ROLES.includes(role)) {
+        console.error(`❌ Unknown role: ${role}. Valid: ${ALL_ROLES.join(', ')}`);
+        process.exit(1);
+      }
+      if (!setRole(role, value)) {
+        console.error(`❌ Profile "${value}" not found. Create it first with: msga config add-model`);
+        process.exit(1);
+      }
+      console.log(`✅ ${role} → ${value}`);
+      return;
+    }
+
+    // Handle profile.<name>.<field> = value
+    if (key.startsWith('profile.')) {
+      const parts = key.split('.');
+      const pName = parts[1];
+      const field = parts[2];
+      if (!pName || !field) {
+        console.error('❌ Format: profile.<name>.<field> where field = baseUrl|apiKey|model|provider');
+        process.exit(1);
+      }
+      const profile = config.models[pName];
+      if (!profile) {
+        console.error(`❌ Profile "${pName}" not found. Create it first with: msga config add-model`);
+        process.exit(1);
+      }
+      if (!['baseUrl', 'apiKey', 'model', 'provider'].includes(field)) {
+        console.error(`❌ Unknown field: ${field}. Valid: baseUrl, apiKey, model, provider`);
+        process.exit(1);
+      }
+      (profile as any)[field] = value;
+      saveConfig(config);
+      console.log(`✅ ${pName}.${field} = ${field === 'apiKey' ? '***' : value}`);
+      return;
+    }
+
+    // Handle top-level shortcuts: baseUrl, apiKey, model → quick setup
+    if (key === 'baseUrl' || key === 'apiKey' || key === 'model') {
+      // Set on all profiles that exist, or create a "default" profile
+      const profileNames = Object.keys(config.models);
+      if (profileNames.length === 0) {
+        // Create a default profile
+        setModelProfile({
+          name: 'default',
+          provider: 'openai',
+          baseUrl: key === 'baseUrl' ? value : 'http://127.0.0.1:8000/v1',
+          apiKey: key === 'apiKey' ? value : undefined,
+          model: key === 'model' ? value : 'qwen3-coder-7b',
+        });
+        // Assign default to all roles
+        const newConfig = loadConfig();
+        for (const role of ALL_ROLES) {
+          newConfig.roles[role] = 'default';
         }
-      })
-  );
+        saveConfig(newConfig);
+      } else {
+        // Update all existing profiles with this field
+        for (const pName of profileNames) {
+          const p = config.models[pName];
+          if (key === 'baseUrl') p.baseUrl = value;
+          if (key === 'apiKey') p.apiKey = value;
+          if (key === 'model') p.model = value;
+        }
+        saveConfig(config);
+      }
+      console.log(`✅ ${key} = ${key === 'apiKey' ? '***' : value}`);
+      return;
+    }
 
-// Models command
-program
-  .command('models')
-  .description('List available models')
+    console.error(`❌ Unknown key: ${key}`);
+    console.error('   Valid: baseUrl, apiKey, model, model.<role>, profile.<name>.<field>');
+    process.exit(1);
+  });
+
+configCmd
+  .command('get')
+  .description('Get a config value')
+  .argument('[key]', 'Config key')
+  .action(async (key?: string) => {
+    const config = loadConfig();
+
+    if (!key) {
+      showConfig(config);
+      return;
+    }
+
+    if (key === 'baseUrl' || key === 'apiKey' || key === 'model') {
+      const profileNames = Object.keys(config.models);
+      if (profileNames.length > 0) {
+        for (const pName of profileNames) {
+          const p = config.models[pName];
+          const val = key === 'baseUrl' ? p.baseUrl : key === 'apiKey' ? (p.apiKey || '(not set)') : p.model;
+          console.log(`  ${pName}.${key} = ${key === 'apiKey' && p.apiKey ? '***' : val}`);
+        }
+      } else {
+        console.log('(no config)');
+      }
+      return;
+    }
+
+    if (key.startsWith('model.')) {
+      const role = key.slice(6) as ModelRole;
+      const profileName = config.roles[role];
+      if (profileName && config.models[profileName]) {
+        console.log(`${role} → ${profileName} (${config.models[profileName].model})`);
+      } else {
+        console.log(`${role} → (not set)`);
+      }
+      return;
+    }
+
+    console.log('(not found)');
+  });
+
+configCmd
+  .command('add-model')
+  .description('Interactively add a new model profile')
   .action(async () => {
-    const registry = new ModelRegistry();
-    console.log('Registered model roles:');
-    for (const role of ['router', 'coder', 'tester', 'reviewer', 'planner']) {
-      const provider = registry.get(role as any);
-      console.log(`  ${role}: ${provider.config.model} @ ${provider.config.baseUrl}`);
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      const profile = await interactiveModelSetup(rl);
+      setModelProfile(profile);
+      console.log(`\n✅ Added model profile: ${profile.name}`);
+      console.log('   Assign it to roles with: msga config set model.<role> <profile-name>');
+    } catch (e: any) {
+      console.error(`❌ ${e.message}`);
+    } finally {
+      rl.close();
     }
   });
 
-// Review command
+configCmd
+  .command('remove-model')
+  .description('Remove a model profile')
+  .argument('<name>', 'Profile name')
+  .action((name: string) => {
+    if (removeModelProfile(name)) {
+      console.log(`✅ Removed profile: ${name}`);
+    } else {
+      console.error(`❌ Profile "${name}" not found`);
+      process.exit(1);
+    }
+  });
+
+configCmd
+  .command('roles')
+  .description('Interactively assign roles to model profiles')
+  .action(async () => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const config = loadConfig();
+    try {
+      await interactiveRoleSetup(rl, config);
+    } finally {
+      rl.close();
+    }
+  });
+
+configCmd
+  .command('quick-setup')
+  .description('Quick setup: one model for all roles')
+  .action(async () => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      await quickSetup(rl);
+    } catch (e: any) {
+      console.error(`❌ ${e.message}`);
+    } finally {
+      rl.close();
+    }
+  });
+
+// ─── Models command ──────────────────────────────────────
+
+program
+  .command('models')
+  .description('List available models and role assignments')
+  .action(() => {
+    const config = loadConfig();
+    const registry = buildRegistry({});
+
+    console.log('📋 Model Roles:\n');
+    for (const role of ALL_ROLES) {
+      const provider = registry.get(role);
+      const profileName = config.roles[role];
+      const source = profileName ? `(profile: ${profileName})` : '(default)';
+      console.log(`  ${role.padEnd(10)} → ${provider.config.model.padEnd(25)} ${source}`);
+    }
+  });
+
+// ─── Review command ──────────────────────────────────────
+
 program
   .command('review')
   .description('Review code files')
   .argument('<files...>', 'Files to review')
   .option('-m, --model <model>', 'Model for review')
-  .option('--base-url <url>', 'API base URL', 'http://127.0.0.1:8000/v1')
+  .option('--base-url <url>', 'API base URL')
   .action(async (files: string[], opts: any) => {
-    const registry = ModelRegistry.fromConfig({ baseUrl: opts.baseUrl });
+    const registry = buildRegistry(opts);
     const reviewer = registry.get('reviewer');
     const fs = await import('fs/promises');
 
@@ -202,7 +386,8 @@ program
     }
   });
 
-// Sessions command
+// ─── Sessions command ────────────────────────────────────
+
 program
   .command('sessions')
   .description('List saved sessions')
@@ -222,6 +407,8 @@ program
       console.log('');
     }
   });
+
+// ─── Interactive mode ────────────────────────────────────
 
 async function interactiveMode(provider: any, opts: any) {
   console.log(`\n🚀 MSGA v${VERSION} - Interactive Mode`);

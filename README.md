@@ -126,28 +126,73 @@ MSGA 内置 5 个模型角色，不同任务自动路由到对应模型：
 | `reviewer` | qwen3-14b | 代码审查 | 14-30B |
 | `planner` | qwen3-14b | 任务规划 | 14-30B |
 
-#### 持久化配置
+#### 配置系统概览
 
-配置存储在 `~/.msga/config.json`，通过 `msga config` 管理：
+MSGA 使用**模型配置文件 (Model Profile)** + **角色分配 (Role Assignment)** 的配置方式：
+
+- **模型配置文件**：定义一个模型的完整连接信息（地址、密钥、模型名）
+- **角色分配**：将 5 个内置角色（router/coder/tester/reviewer/planner）映射到不同的配置文件
+
+配置存储在 `~/.msga/config.json`。
+
+#### 快速开始（单模型）
 
 ```bash
-# 设置默认 API 地址（默认 http://127.0.0.1:8000/v1）
+# 交互式快速配置：一个模型用于所有角色
+msga config quick-setup
+```
+
+向导会引导你输入 provider 类型、API 地址、API Key（可选）和模型名称。
+
+#### 多模型配置（推荐）
+
+为不同角色分配不同模型，让小模型做路由、大模型做编码和审查：
+
+```bash
+# 1. 添加多个模型配置文件
+msga config add-model
+# 按提示添加，例如：
+#   - profile "q4b" → qwen3-4b (用于 router)
+#   - profile "qcoder" → qwen3-coder-7b (用于 coder/tester)
+#   - profile "q14b" → qwen3-14b (用于 reviewer/planner)
+
+# 2. 交互式分配角色
+msga config roles
+# 为每个角色选择对应的配置文件
+
+# 3. 查看配置结果
+msga config show
+```
+
+#### 非交互式配置
+
+```bash
+# 设置顶层快捷值（会更新所有已有配置文件，或自动创建 default 配置文件）
 msga config set baseUrl http://localhost:11434/v1
-
-# 设置 API Key（使用远程服务时）
 msga config set apiKey sk-your-key
+msga config set model qwen3-14b
 
-# 查看当前所有配置
-msga config get
+# 设置角色 → 配置文件映射
+msga config set model.router q4b
+msga config set model.coder qcoder
+msga config set model.reviewer q14b
 
-# 查看单个配置项
-msga config get baseUrl
+# 修改已有配置文件的字段
+msga config set profile.qcoder.model qwen3-coder-14b
+msga config set profile.qcoder.baseUrl http://192.168.1.100:8000/v1
+
+# 删除配置文件
+msga config remove-model q4b
+
+# 查看配置
+msga config get              # 查看所有
+msga config get model.coder  # 查看 coder 角色分配
 ```
 
 #### 命令行参数（临时覆盖）
 
 ```bash
-# 指定模型（所有角色使用同一模型）
+# 指定模型（所有角色使用同一模型，覆盖配置文件）
 msga -m qwen3-14b "实现用户登录"
 
 # 指定 API 地址
@@ -159,11 +204,15 @@ msga --api-key sk-xxx --base-url https://api.example.com/v1 "任务"
 
 #### 多模型编排模式
 
-加 `-p` 启用多模型协作，不同任务自动分配给不同角色模型：
+加 `-p` 启用多模型协作，不同任务自动分配给对应角色模型：
 
 ```bash
 msga -p "设计并实现用户认证系统"
 ```
+
+#### 旧版配置自动迁移
+
+如果你之前使用的是旧版 flat 配置（`baseUrl`/`apiKey`/`model`/`model.router` 等直接写在 config.json 的键），MSGA 会自动迁移为新格式，无需手动操作。
 
 ### 使用
 
