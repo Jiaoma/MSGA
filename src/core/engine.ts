@@ -14,34 +14,34 @@ import { ContextManager, DEFAULT_BUDGET } from '../context/manager.js';
 import type { ModelProvider } from '../models/provider.js';
 import type { ToolCall } from '../models/provider.js';
 import type { ToolDefinition } from '../models/provider.js';
-import { ALL_TOOLS, getToolsAsOpenAIFormat, zodToJsonSchema } from '../tools/index.js';
+import { ALL_TOOLS, zodToJsonSchema } from '../tools/index.js';
 import { validateToolCall } from './validator.js';
+import { analyzeTask } from './adaptive-tools.js';
 import { Planner } from './planner.js';
 import { ParallelExecutor } from './parallel-executor.js';
 import type { Plan, AtomResult } from './planner.js';
 import { ModelRegistry } from '../models/registry.js';
 import { z } from 'zod';
 
-const SYSTEM_PROMPT = `You are MSGA, a coding assistant. You MUST use tools to accomplish tasks. NEVER output code directly in text.
+const SYSTEM_PROMPT = `You are MSGA, an expert coding assistant. You MUST use tools to complete tasks. NEVER output code in text.
 
-CRITICAL RULES:
-1. To create or write a file: call write_file tool
-2. To read a file: call read_file tool
-3. To run a command: call bash tool
-4. To search code: call search_code tool
-5. NEVER write code in markdown blocks - always use write_file tool
-6. ALWAYS call at least one tool per response
+WORKFLOW:
+1. READ existing files first (read_file / search_code)
+2. WRITE or EDIT files (write_file / add_function / edit_function)
+3. RUN commands to verify (bash)
+4. REPEAT until task is done
 
-Example of CORRECT behavior:
-User: "Create a hello.py file"
-Assistant: calls write_file(path="hello.py", content="print('hello')")
+TOOL USAGE:
+- write_file(path="f", content="...")  — create or overwrite a file
+- read_file(path="f")                — read a file
+- bash(command="...", timeout=30)   — run a shell command
+- search_code(pattern="X", scope=".") — search in files
+- run_test_file(file="tests/x.test.ts") — run tests
 
-Example of WRONG behavior (NEVER do this):
-User: "Create a hello.py file"
-Assistant: \`\`\`python\nprint('hello')\n\`\`\`
-This is wrong because you should use the write_file tool instead.
+CORRECT: write_file(path="hello.py", content="print('hello')")
+WRONG:  \`\`\`python\nprint('hello')\n\`\`\` ← NEVER output code in text
 
-Always use tools. Do not output raw code.`;
+Always use tools. Only output plain text when no tool is needed.`;
 
 const MAX_TOOL_ROUNDS = 10;
 
@@ -99,8 +99,8 @@ export class ExecutionEngine {
     let lastResponse = '';
 
     for (let round = 0; round < this.maxToolRounds; round++) {
-      // Call model
-      const response = await this.callModel(messages);
+      // Call model (pass task for adaptive tool selection)
+      const response = await this.callModel(messages, task);
 
       // If no tool calls, we're done
       if (!response.toolCalls || response.toolCalls.length === 0) {
@@ -292,14 +292,86 @@ export class ExecutionEngine {
     return summary;
   }
 
-  private async callModel(messages: Message[]) {
-    // Pass raw tool definitions (ToolDef objects), provider handles formatting
-    const toolDefs: import('../models/provider.js').ToolDefinition[] = ALL_TOOLS.map(t => ({
-      name: t.name,
-      description: t.description,
-      parameters: zodToJsonSchema(t.inputSchema),
-    }));
-    return this.provider.chat(messages, toolDefs);
+  /**
+   * Filter tools based on task type, keeping only relevant ones.
+   * For simple tasks (create small file, run command) only 3-5 tools are needed.
+   * For complex tasks, use more tools but still limit to relevant subset.
+   * This dramatically reduces the tool selection burden on SLMs.
+   */
+  private filterToolsForTask(task: string): ToolDefinition[] {
+    const analysis = analyzeTask(task);
+
+    // Core tools: always available for all tasks
+    const core = ['write_file', 'read_file', 'bash', 'search_code'];
+
+    const relevant: string[] = [...core];
+
+    if (analysis.requiresCodeWriting) {
+      relevant.push('add_function', 'edit_function', 'add_import');
+    }
+
+    if (analysis.requiresTesting) {
+      relevant.push('run_test_file', 'run_test_case', 'get_diagnostics');
+    }
+
+    if (analysis.complexity === 'complex') {
+      relevant.push('read_function', 'read_class', 'rename_symbol', 'list_symbols');
+    }
+
+    // Deduplicate but preserve order
+    const seen = new Set<string>();
+    const filtered: string[] = [];
+    for (const name of relevant) {
+      if (!seen.has(name)) {
+        seen.add(name);
+        filtered.push(name);
+      }
+    }
+
+    const toolMap = new Map(ALL_TOOLS.map(t => [t.name, t]));
+    return filtered
+      .map(name => toolMap.get(name))
+      .filter((t): t is NonNullable<typeof t> => t !== undefined)
+      .map(t => ({
+        name: t.name,
+        description: t.description,
+        parameters: zodToJsonSchema(t.inputSchema),
+      }));
+  }
+
+  private async callModel(messages: Message[], task?: string) {
+    const toolDefs = task
+      ? this.filterToolsForTask(task)
+      : ALL_TOOLS.map(t => ({
+          name: t.name,
+          description: t.description,
+          parameters: zodToJsonSchema(t.inputSchema),
+        }));
+
+    // Retry on transient network errors (ECONNRESET, fetch failed, etc.)
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        return await this.provider.chat(messages, toolDefs);
+      } catch (err: any) {
+        const isTransient =
+          err?.cause?.code === 'ECONNRESET' ||
+          err?.cause?.errno === 'ECONNRESET' ||
+          err?.message?.includes('fetch failed') ||
+          err?.message?.includes('ECONNRESET') ||
+          err?.message?.includes('connection reset') ||
+          err?.message?.includes('network error') ||
+          (err?.cause && !(err.cause instanceof Error));
+
+        if (isTransient && attempt < MAX_RETRIES) {
+          this.callbacks.onContent?.(`\n⚠️ Network error (attempt ${attempt}/${MAX_RETRIES}): ${err.message}. Retrying...\n`);
+          await new Promise(r => setTimeout(r, 2000 * attempt));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new Error('unreachable');
   }
 
   /**
@@ -312,7 +384,6 @@ export class ExecutionEngine {
     const writtenFiles: string[] = [];
 
     // Strategy 1: Extract write_file pseudo-calls from text
-    // Model may output as: write_file(path="f", content="...") OR <write_file path="f" content="...">
     for (const pattern of [
       /write_file\s*\(\s*path\s*=\s*["']([^"']+)["']\s*,\s*content\s*=\s*["']/g,
       /<write_file\s+path\s*=\s*["']([^"']+)["']\s+content\s*=\s*["']/g,
@@ -323,7 +394,6 @@ export class ExecutionEngine {
         const filePath = wfMatch[1];
         const contentStart = wfMatch.index + wfMatch[0].length;
         const rest = text.slice(contentStart);
-        // Find closing: " followed by ) or > or \n
         const closeIdx = rest.search(/"\s*(?:\)|>)/);
         if (closeIdx === -1) continue;
         let code = rest.slice(0, closeIdx);
@@ -342,7 +412,6 @@ export class ExecutionEngine {
       }
       if (writtenFiles.length > 0) return writtenFiles;
     }
-    if (writtenFiles.length > 0) return writtenFiles;
 
     // Strategy 2: Extract fenced code blocks
     const codeBlockRegex = /```(\w*)\s*\n([\s\S]*?)```/g;
@@ -362,7 +431,6 @@ export class ExecutionEngine {
 
     for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i];
-      // Skip if it looks like a tool call, not real code
       if (block.code.startsWith('write_file(') || block.code.startsWith('read_file(') || block.code.startsWith('bash(')) continue;
       const ext = langToExt[block.lang] || '.txt';
       const baseName = task.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20).replace(/_+$/, '');

@@ -1,0 +1,321 @@
+{
+  "version": "1.0.0",
+  "topic": "Model Scaling & Capability Degradation",
+  "description": "当模型参数量减少时，哪些能力会丢失或退化？",
+  "last_updated": "2026-06-19",
+  "papers": [
+    {
+      "id": "P01",
+      "title": "Capability Ceilings in Autoregressive Language Models",
+      "authors": [
+        "Javier Marín"
+      ],
+      "year": 2025,
+      "arxiv": "2510.21866",
+      "url": "https://arxiv.org/abs/2510.21866",
+      "venue": "arXiv preprint",
+      "tags": [
+        "scaling-laws",
+        "capability-ceiling",
+        "knowledge-retrieval"
+      ],
+      "key_finding": "知识检索任务在240倍参数扩展中几乎无精度提升，MMLU数学始终低于随机水平。Loss下降≠精度提升。",
+      "relevance": "high",
+      "pdf_saved": true,
+      "pdf_path": "papers/P01_capability_ceilings.pdf"
+    },
+    {
+      "id": "P02",
+      "title": "The Cost of Down-Scaling Language Models: Fact Recall Deteriorates before In-Context Learning",
+      "authors": [
+        "Tian Jin",
+        "Nolan Clement",
+        "Xin Dong",
+        "Vaishnavh Nagarajan",
+        "Michael Carbin",
+        "Jonathan Ragan-Kelley",
+        "Gintare Karolina Dziugaite"
+      ],
+      "year": 2024,
+      "arxiv": "2310.04680",
+      "url": "https://arxiv.org/abs/2310.04680",
+      "venue": "ICLR 2024",
+      "tags": [
+        "downscaling",
+        "fact-recall",
+        "in-context-learning",
+        "pruning"
+      ],
+      "key_finding": "事实回忆在参数削减30%后显著退化，而上下文学习在60-70%削减后仍大部分保留。两种能力有根本不同的缩放关系。",
+      "relevance": "critical",
+      "pdf_saved": true,
+      "pdf_path": "papers/P02_cost_of_downscaling.pdf"
+    },
+    {
+      "id": "P03",
+      "title": "Emergent Abilities in Reduced-Scale Generative Language Models",
+      "authors": [
+        "Sherin Muckatira",
+        "Vijeta Deshpande",
+        "Vladislav Lialin",
+        "Anna Rumshisky"
+      ],
+      "year": 2024,
+      "arxiv": "2404.02204",
+      "url": "https://arxiv.org/abs/2404.02204",
+      "venue": "arXiv preprint",
+      "tags": [
+        "emergent-abilities",
+        "small-models",
+        "simplified-language"
+      ],
+      "key_finding": "简化语言域中165M模型可匹配1B模型表现。涌现能力不纯粹依赖规模，而是当语言复杂度匹配模型容量时出现。",
+      "relevance": "high",
+      "pdf_saved": true,
+      "pdf_path": "papers/P03_emergent_reduced_scale.pdf"
+    },
+    {
+      "id": "P04",
+      "title": "U-shaped and Inverted-U Scaling behind Emergent Abilities of Large Language Models",
+      "authors": [
+        "Tung-Yu Wu",
+        "Melody Pei-Yu Lo"
+      ],
+      "year": 2024,
+      "arxiv": "2410.01692",
+      "url": "https://arxiv.org/abs/2410.01692",
+      "venue": "arXiv preprint",
+      "tags": [
+        "emergent-abilities",
+        "u-shaped-scaling",
+        "task-difficulty"
+      ],
+      "key_finding": "困难任务呈U形曲线、简单任务呈倒U形。中等模型的性能停滞是两种趋势的抵消效应，非根本能力缺陷。",
+      "relevance": "high",
+      "pdf_saved": true,
+      "pdf_path": "papers/P04_ushaped_scaling.pdf"
+    },
+    {
+      "id": "P05",
+      "title": "Understanding the Effects of LLMs Compression on Large Reasoning Models",
+      "authors": [
+        "Nan Zhang",
+        "Eugene Kwek",
+        "Yusen Zhang",
+        "Ngoc-Hieu Nguyen",
+        "Prasenjit Mitra",
+        "Rui Zhang"
+      ],
+      "year": 2025,
+      "arxiv": "2504.02010",
+      "url": "https://arxiv.org/abs/2504.02010",
+      "venue": "arXiv preprint",
+      "tags": [
+        "compression",
+        "reasoning",
+        "quantization",
+        "pruning",
+        "distillation"
+      ],
+      "key_finding": "数学推理最先崩溃。最后层up-projection仅0.7%权重可导致16.3%精度下降。保护2%关键权重可挽回6.57%。",
+      "relevance": "critical",
+      "pdf_saved": true,
+      "pdf_path": "papers/P05_compression_reasoning.pdf"
+    },
+    {
+      "id": "P06",
+      "title": "The 4th Dimension for Scaling Model Size",
+      "authors": [
+        "Ruike Zhu",
+        "Hanwen Zhang",
+        "Tianyu Shi",
+        "Chi Wang",
+        "Tianyi Zhou",
+        "Zengyi Qin"
+      ],
+      "year": 2025,
+      "arxiv": "2506.18233",
+      "url": "https://arxiv.org/abs/2506.18233",
+      "venue": "arXiv preprint",
+      "tags": [
+        "virtual-logical-depth",
+        "reasoning",
+        "parameter-efficiency"
+      ],
+      "key_finding": "参数量与知识容量正比但与推理能力无关。通过VLD（层复用）50M模型推理可超150M基线。知识和推理可解耦扩展。",
+      "relevance": "critical",
+      "pdf_saved": true,
+      "pdf_path": "papers/P06_4th_dimension_scaling.pdf"
+    },
+    {
+      "id": "P07",
+      "title": "Position: Enough of Scaling LLMs! Let's Focus on Downscaling",
+      "authors": [
+        "Yash Goel",
+        "Ayan Sengupta",
+        "Tanmoy Chakraborty"
+      ],
+      "year": 2025,
+      "arxiv": "2505.00985",
+      "url": "https://arxiv.org/abs/2505.00985",
+      "venue": "arXiv preprint",
+      "tags": [
+        "downscaling",
+        "efficiency",
+        "sustainability",
+        "small-models"
+      ],
+      "key_finding": "10%性能提升需329%碳排放。小模型通过数据质量、战略剪枝、领域特化、模型集成可接近大模型。",
+      "relevance": "high",
+      "pdf_saved": true,
+      "pdf_path": "papers/P07_focus_downscaling.pdf"
+    },
+    {
+      "id": "P08",
+      "title": "Revisiting the Capacity Gap in Chain-of-Thought Distillation from a Practical Perspective",
+      "authors": [
+        "Tokio Kajitsuka",
+        "Ukyo Honda",
+        "Sho Takase"
+      ],
+      "year": 2026,
+      "arxiv": "2604.08880",
+      "url": "https://arxiv.org/abs/2604.08880",
+      "venue": "arXiv preprint",
+      "tags": [
+        "distillation",
+        "chain-of-thought",
+        "capacity-gap",
+        "reasoning-transfer"
+      ],
+      "key_finding": "CoT蒸馏在多数配置下反而降低性能。形式逻辑等特定推理类型抗拒迁移。强教师模型在差距大时仍优于弱教师。",
+      "relevance": "medium",
+      "pdf_saved": true,
+      "pdf_path": "papers/P08_capacity_gap_cot.pdf"
+    },
+    {
+      "id": "P09",
+      "title": "Emergent Abilities of Large Language Models",
+      "authors": [
+        "Jason Wei",
+        "Yi Tay",
+        "Rishi Bommasani",
+        "Colin Raffel",
+        "Barret Zoph",
+        "Sebastian Borgeaud",
+        "et al."
+      ],
+      "year": 2022,
+      "arxiv": "2206.07682",
+      "url": "https://arxiv.org/abs/2206.07682",
+      "venue": "TMLR 2022",
+      "tags": [
+        "emergent-abilities",
+        "foundational",
+        "scaling"
+      ],
+      "key_finding": "首次系统定义'涌现能力'：小模型不具备、大模型才出现的能力，无法通过外推预测。奠定了'参数量决定能力边界'的经典叙事。",
+      "relevance": "critical",
+      "pdf_saved": true,
+      "pdf_path": "papers/P09_emergent_abilities.pdf"
+    },
+    {
+      "id": "P10",
+      "title": "Are Emergent Abilities of Large Language Models a Mirage?",
+      "authors": [
+        "Rylan Schaeffer",
+        "Brando Miranda",
+        "Sanmi Koyejo"
+      ],
+      "year": 2023,
+      "arxiv": "2304.15004",
+      "url": "https://arxiv.org/abs/2304.15004",
+      "venue": "NeurIPS 2023 (Outstanding Paper)",
+      "tags": [
+        "emergent-abilities",
+        "metric-artifact",
+        "foundational",
+        "debate"
+      ],
+      "key_finding": "涌现能力可能是度量选择的假象：非线性/不连续指标制造'涌现'，线性/连续指标显示平滑变化。小模型可能拥有被指标掩盖的潜在能力。",
+      "relevance": "critical",
+      "pdf_saved": true,
+      "pdf_path": "papers/P10_emergent_mirage.pdf"
+    },
+    {
+      "id": "P11",
+      "title": "Understanding Emergent Abilities of Language Models from the Loss Perspective",
+      "authors": [
+        "Zhengxiao Du",
+        "Aohan Zeng",
+        "Yuxiao Dong",
+        "Jie Tang"
+      ],
+      "year": 2024,
+      "arxiv": "2403.15796",
+      "url": "https://arxiv.org/abs/2403.15796",
+      "venue": "NeurIPS 2024",
+      "tags": [
+        "pre-training-loss",
+        "emergent-abilities",
+        "threshold"
+      ],
+      "key_finding": "预训练loss才是下游能力的真正预测因子，与参数量无关。相同loss不同规模的模型表现相同。MMLU/GSM8K在loss<2.2前接近随机。",
+      "relevance": "high",
+      "pdf_saved": true,
+      "pdf_path": "papers/P11_loss_perspective.pdf"
+    },
+    {
+      "id": "P12",
+      "title": "The Larger the Better? Improved LLM Code-Generation via Budget Reallocation",
+      "authors": [
+        "Michael Hassid",
+        "Tal Remez",
+        "Jonas Gehring",
+        "Roy Schwartz",
+        "Yossi Adi"
+      ],
+      "year": 2024,
+      "arxiv": "2404.00725",
+      "url": "https://arxiv.org/abs/2404.00725",
+      "venue": "COLM 2024",
+      "tags": [
+        "code-generation",
+        "compute-budget",
+        "repeated-sampling",
+        "small-models"
+      ],
+      "key_finding": "同等算力下，对7B/13B模型多次采样+单元测试筛选，在HumanEval/MBPP上可超越单次运行的70B模型(最高+15%)。规模可用生成量置换。",
+      "relevance": "critical",
+      "pdf_saved": true,
+      "pdf_path": "papers/P12_budget_reallocation.pdf"
+    },
+    {
+      "id": "P13",
+      "title": "Through a Compressed Lens: Investigating The Impact of Quantization on Factual Knowledge Recall",
+      "authors": [
+        "Qianli Wang",
+        "Mingyang Wang",
+        "Nils Feldhus",
+        "Simon Ostermann",
+        "Yuan Cao",
+        "Hinrich Schütze",
+        "et al."
+      ],
+      "year": 2026,
+      "arxiv": "2505.13963",
+      "url": "https://arxiv.org/abs/2505.13963",
+      "venue": "arXiv preprint",
+      "tags": [
+        "quantization",
+        "factual-knowledge",
+        "first-hop-reasoning",
+        "bit-width"
+      ],
+      "key_finding": "量化对first-hop推理伤害最大(达30%)，多跳推理仅降4.25%。8-bit基本无损，4-bit持续掉点。小模型受损更严重。",
+      "relevance": "high",
+      "pdf_saved": true,
+      "pdf_path": "papers/P13_quantization_factual.pdf"
+    }
+  ]
+}
