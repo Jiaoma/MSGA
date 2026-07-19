@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "topic": "Model Scaling & Capability Degradation",
   "description": "当模型参数量减少时，哪些能力会丢失或退化？",
-  "last_updated": "2026-06-19",
+  "last_updated": "2026-07-12",
   "papers": [
     {
       "id": "P01",
@@ -316,6 +316,238 @@
       "relevance": "high",
       "pdf_saved": true,
       "pdf_path": "papers/P13_quantization_factual.pdf"
+    },
+    {
+      "id": "P14",
+      "title": "EffGen: Enabling Small Language Models as Capable Autonomous Agents",
+      "authors": [
+        "Gaurav Srivastava",
+        "Aafiya Hussain",
+        "Chi Wang",
+        "Yingyan Celine Lin",
+        "Xuan Wang"
+      ],
+      "year": 2026,
+      "arxiv": "2602.00887",
+      "url": "https://arxiv.org/abs/2602.00887",
+      "venue": "arXiv preprint",
+      "tags": [
+        "agentic-ai",
+        "small-language-models",
+        "tool-calling",
+        "task-decomposition",
+        "routing",
+        "memory"
+      ],
+      "key_finding": "面向SLM的开源代理框架，通过提示压缩、复杂任务拆解、复杂度路由、统一记忆与协议兼容提升自主代理能力；提示优化对小模型收益尤其明显。",
+      "relevance": "critical",
+      "pdf_saved": false,
+      "pdf_path": null
+    },
+    {
+      "id": "P15",
+      "title": "Small Language Models for Efficient Agentic Tool Calling: Outperforming Large Models with Targeted Fine-tuning",
+      "authors": [
+        "Polaris Jhandi",
+        "Owais Kazi",
+        "Shreyas Subramanian",
+        "Neel Sendas"
+      ],
+      "year": 2025,
+      "arxiv": "2512.15943",
+      "url": "https://arxiv.org/abs/2512.15943",
+      "venue": "AAAI 2026 Workshop / arXiv preprint",
+      "tags": [
+        "tool-calling",
+        "small-language-models",
+        "supervised-fine-tuning",
+        "ToolBench",
+        "agentic-workflows"
+      ],
+      "key_finding": "对OPT-350M进行定向SFT后，在ToolBench达到77.55% pass rate，显著高于若干大模型/ToolLLaMA基线，说明工具调用可由小模型通过场景化微调承担。",
+      "relevance": "critical",
+      "pdf_saved": false,
+      "pdf_path": null
+    },
+    {
+      "id": "P16",
+      "title": "Code Generation with Small Language Models: A Deep Evaluation on Codeforces",
+      "authors": [
+        "Unknown / arXiv metadata pending"
+      ],
+      "year": 2025,
+      "arxiv": "2504.07343",
+      "url": "https://arxiv.org/abs/2504.07343",
+      "venue": "arXiv preprint",
+      "tags": [
+        "code-generation",
+        "small-language-models",
+        "competitive-programming",
+        "evaluation"
+      ],
+      "key_finding": "在Codeforces风格任务上深度评估小语言模型的代码生成能力，为MSGA的代码任务路由与测试驱动筛选提供更贴近复杂编程任务的证据。",
+      "relevance": "medium",
+      "pdf_saved": false,
+      "pdf_path": null
+    },
+    {
+      "id": "P17",
+      "title": "Assessing Small Language Models for Code Generation: An Empirical Study with Benchmarks",
+      "authors": [
+        "Md Mahade Hasan",
+        "Muhammad Waseem",
+        "Kai-Kristian Kemell",
+        "Jussi Rasku",
+        "Juha Ala-Rantala",
+        "Pekka Abrahamsson"
+      ],
+      "year": 2025,
+      "arxiv": "2507.03160",
+      "url": "https://arxiv.org/abs/2507.03160",
+      "venue": "arXiv preprint",
+      "tags": [
+        "code-generation",
+        "small-language-models",
+        "benchmarking",
+        "HumanEval",
+        "MBPP",
+        "CodeXGLUE"
+      ],
+      "key_finding": "评测20个0.4B-10B开源小模型，覆盖功能正确性、效率和多语言代码生成；部分SLM具备资源受限场景竞争力，但约10%性能提升可能伴随近4倍VRAM增长。",
+      "relevance": "high",
+      "pdf_saved": false,
+      "pdf_path": null
+    },
+    {
+      "id": "P18",
+      "title": "Self-Correcting Code Generation Using Small Language Models",
+      "authors": [
+        "Jeonghun Cho",
+        "Deokhyung Kang",
+        "Hyounghun Kim",
+        "Gary Geunbae Lee"
+      ],
+      "year": 2025,
+      "arxiv": "2505.23060",
+      "url": "https://arxiv.org/abs/2505.23060",
+      "venue": "arXiv preprint",
+      "tags": [
+        "code-generation",
+        "self-correction",
+        "small-language-models",
+        "reinforcement-learning",
+        "unit-tests"
+      ],
+      "key_finding": "面向大模型的自我修正策略迁移到小代码模型时可能失灵甚至改坏正确答案；CoCoS用在线强化学习和单测通过率奖励提升1B级模型的选择性修正能力。",
+      "relevance": "critical",
+      "pdf_saved": false,
+      "pdf_path": null
+    },
+    {
+      "id": "P19",
+      "title": "Small Language Models are the Future of Agentic AI",
+      "authors": [
+        "Peter Belcak",
+        "Greg Heinrich",
+        "Shizhe Diao",
+        "Yonggan Fu",
+        "Xin Dong",
+        "Saurav Muralidharan",
+        "Yingyan Celine Lin",
+        "Pavlo Molchanov"
+      ],
+      "year": 2025,
+      "arxiv": "2506.02153",
+      "url": "https://arxiv.org/abs/2506.02153",
+      "venue": "arXiv preprint / position paper",
+      "tags": [
+        "agentic-ai",
+        "small-language-models",
+        "heterogeneous-agents",
+        "deployment-cost"
+      ],
+      "key_finding": "立场论文主张代理系统中大量重复、低变化任务更适合由SLM承担；需要通用对话时应采用异构多模型代理，而非单一大模型。",
+      "relevance": "high",
+      "pdf_saved": false,
+      "pdf_path": null
+    },
+    {
+      "id": "P20",
+      "title": "A Survey on Code Generation with LLM-based Agents",
+      "authors": [
+        "Yihong Dong",
+        "Xue Jiang",
+        "Jiaru Qian",
+        "Tian Wang",
+        "Kechi Zhang",
+        "Zhi Jin",
+        "Ge Li"
+      ],
+      "year": 2025,
+      "arxiv": "2508.00083",
+      "url": "https://arxiv.org/abs/2508.00083",
+      "venue": "arXiv preprint / survey",
+      "tags": [
+        "coding-agents",
+        "code-generation",
+        "multi-agent",
+        "software-engineering",
+        "evaluation"
+      ],
+      "key_finding": "综述LLM代码生成代理的单/多代理架构、任务分解、编码、调试、评测基准与挑战，说明研究重心正从代码补全转向完整软件开发生命周期。",
+      "relevance": "high",
+      "pdf_saved": false,
+      "pdf_path": null
+    },
+    {
+      "id": "P21",
+      "title": "Coding Agents are Effective Long-Context Processors",
+      "authors": [
+        "Weili Cao",
+        "Xunjian Yin",
+        "Bhuwan Dhingra",
+        "Shuyan Zhou"
+      ],
+      "year": 2026,
+      "arxiv": "2603.20432",
+      "url": "https://arxiv.org/abs/2603.20432",
+      "venue": "arXiv preprint",
+      "tags": [
+        "coding-agents",
+        "long-context",
+        "tool-use",
+        "file-system",
+        "retrieval",
+        "RAG"
+      ],
+      "key_finding": "将长上下文处理转化为编码代理对文件系统和工具的外部交互，在长上下文推理、RAG和开放域问答上平均优于既有SOTA 17.3%。",
+      "relevance": "high",
+      "pdf_saved": false,
+      "pdf_path": null
+    },
+    {
+      "id": "P22",
+      "title": "Natural Language Tools: A Natural Language Approach to Tool Calling In Large Language Agents",
+      "authors": [
+        "Reid T. Johnson",
+        "Michelle D. Pain",
+        "Jordan D. West"
+      ],
+      "year": 2025,
+      "arxiv": "2510.14453",
+      "url": "https://arxiv.org/abs/2510.14453",
+      "venue": "arXiv preprint",
+      "tags": [
+        "tool-calling",
+        "natural-language-tools",
+        "JSON",
+        "agent-design",
+        "open-weight-models"
+      ],
+      "key_finding": "提出用自然语言工具输出替代程序化JSON工具调用，并分离工具选择与回答生成；在10个模型6400次试验中工具调用准确率提升18.4个百分点、输出波动下降70%。",
+      "relevance": "medium",
+      "pdf_saved": false,
+      "pdf_path": null
     }
   ]
 }

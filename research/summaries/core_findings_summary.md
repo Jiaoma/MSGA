@@ -80,3 +80,30 @@
 - CoT蒸馏在大多数情况下实际上降低了性能
 - 形式逻辑、逻辑推演等任务完全抗拒蒸馏
 - 实践建议: 用强教师模型，但需验证是否真的比基线好
+
+---
+
+## 2026-07-12 新增主题：面向小语言模型的编码代理与工具调用
+
+### P14 [CRITICAL] EffGen: Enabling Small Language Models as Capable Autonomous Agents (2026)
+
+- 面向 SLM 的代理框架，整合提示压缩、任务拆解、复杂度路由、统一记忆与 MCP/A2A/ACP 协议兼容
+- 提示优化对小模型收益更大，复杂度路由对大模型收益更大
+- MSGA启示: 任务原子化、渐进式上下文注入、模型路由和统一记忆是 SLM 代理的核心补偿机制
+
+### P15 [CRITICAL] Small Language Models for Efficient Agentic Tool Calling (2025/2026)
+
+- OPT-350M 经定向 SFT 后在 ToolBench 达到 77.55% pass rate
+- 稳定工具集合和任务分布下，工具调用可由专门化小模型承担
+- MSGA启示: router/tool-caller 可训练为轻量角色模型，不必总由 coder/planner 级模型执行
+
+### P18 [CRITICAL] Self-Correcting Code Generation Using Small Language Models (2025)
+
+- 大模型自我修正提示迁移到小代码模型时可能失灵，甚至破坏原本正确的代码
+- CoCoS 用在线强化学习和单测通过率奖励提升选择性修正
+- MSGA启示: 修复循环应测试驱动、最小补丁化，并由 validator/tester/reviewer 分离职责
+
+### P21 Coding Agents are Effective Long-Context Processors (2026)
+
+- 编码代理通过文件系统和工具外部化长上下文处理，在长上下文推理、RAG、开放域问答上优于既有 SOTA 17.3%
+- MSGA启示: 与其追求 SLM 超长上下文，不如构建文件系统化上下文、符号索引和按需注入机制
