@@ -1,6 +1,6 @@
 {
   "name": "msga",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Make Small language models Great Again - AI coding agent optimized for SLM",
   "type": "module",
   "main": "dist/cli.js",
@@ -10,8 +10,11 @@
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsc",
-    "test": "vitest",
-    "lint": "biome check src/"
+    "test": "vitest --exclude benchmarks/fixtures/** --exclude .msga-bench/**",
+    "lint": "biome check src/ benchmarks/*.ts benchmarks/runners/ tests/benchmark-*.test.ts tests/patch-model.test.ts",
+    "bench": "tsx benchmarks/compare.ts",
+    "bench:qwen": "tsx benchmarks/compare.ts --model qwen3:8b",
+    "bench:weak": "tsx benchmarks/compare.ts --model phi4-mini:3.8b"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",

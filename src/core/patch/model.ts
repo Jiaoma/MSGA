@@ -19,6 +19,9 @@ import type {
 } from "./types.js";
 
 const MAX_FILE_CHARS = 16_000;
+const FAILURE_SUPPLEMENT_MAX_TOKENS = 512;
+const PATCH_INTENT_MAX_TOKENS = 2048;
+const PROPOSED_PATCH_MAX_TOKENS = 512;
 
 export async function maybeSupplementFailureReport(
 	report: FailureReport,
@@ -26,8 +29,7 @@ export async function maybeSupplementFailureReport(
 	opts: PatchOptions,
 ): Promise<FailureReport> {
 	if (report.confidence === "high" && report.modelSupplement) return report;
-	if (report.confidence === "high" && report.allowedFilesToEdit.length > 0)
-		return report;
+	if (report.allowedFilesToEdit.length > 0) return report;
 
 	const messages: Message[] = [
 		{
@@ -48,7 +50,10 @@ export async function maybeSupplementFailureReport(
 		},
 	];
 
-	const response = await provider.chat(messages, []);
+	const response = await provider.chat(messages, [], {
+		maxTokens: FAILURE_SUPPLEMENT_MAX_TOKENS,
+		responseFormat: "json_object",
+	});
 	const parsed = parseFailureModelSupplement(response.content || "");
 	if (!parsed.valid || !parsed.data || typeof parsed.data !== "object")
 		return report;
@@ -117,14 +122,77 @@ export async function requestPatchIntent(
 			}),
 		},
 	];
-	const response = await provider.chat(messages, []);
+	const response = await provider.chat(messages, [], {
+		maxTokens: PATCH_INTENT_MAX_TOKENS,
+		responseFormat: "json_object",
+	});
 	const parsed = parsePatchIntent(response.content || "");
 	if (!parsed.valid || !parsed.data) {
+		const fallback = buildFallbackPatchIntent(report, opts);
+		if (fallback) return fallback;
 		throw new Error(
 			`Model did not return a valid PatchIntent: ${parsed.errors.map((e) => e.path).join(", ")}`,
 		);
 	}
-	return parsed.data;
+	return normalizePatchIntent(parsed.data, opts);
+}
+
+function buildFallbackPatchIntent(
+	report: FailureReport,
+	opts: PatchOptions,
+): PatchIntent | null {
+	const candidates = report.allowedFilesToEdit.filter(Boolean);
+	if (candidates.length !== 1) return null;
+	const changeType =
+		report.failureType === "type_error"
+			? "type_fix"
+			: report.failureType === "lint_error"
+				? "lint_fix"
+				: report.failureType === "build_error"
+					? "build_fix"
+					: "bug_fix";
+	return normalizePatchIntent(
+		{
+			targetFiles: candidates,
+			changeType,
+			reason: report.primaryError || "Repair the failing validation.",
+			expectedEffect: "Validation passes after a minimal source edit.",
+			failureEvidence: report.evidence.slice(0, 3).map((e) => e.text),
+			allowedOperations: ["edit_function"],
+			forbiddenOperations: report.disallowedActions,
+			riskLevel: "low",
+			maxChangedFiles: candidates.length,
+			maxChangedLines: opts.maxChangedLines,
+		},
+		opts,
+	);
+}
+
+function normalizePatchIntent(
+	intent: PatchIntent,
+	opts: PatchOptions,
+): PatchIntent {
+	const targetFileCount = Math.max(1, intent.targetFiles.length);
+	const fallbackMaxChangedFiles = Math.min(
+		opts.maxChangedFiles,
+		targetFileCount,
+	);
+	const maxChangedFiles =
+		Number.isInteger(intent.maxChangedFiles) && intent.maxChangedFiles > 0
+			? Math.min(intent.maxChangedFiles, opts.maxChangedFiles)
+			: fallbackMaxChangedFiles;
+	const maxChangedLines =
+		intent.maxChangedLines !== undefined &&
+		Number.isInteger(intent.maxChangedLines) &&
+		intent.maxChangedLines > 0
+			? Math.min(intent.maxChangedLines, opts.maxChangedLines)
+			: undefined;
+
+	return {
+		...intent,
+		maxChangedFiles,
+		maxChangedLines,
+	};
 }
 
 export async function requestProposedPatch(
@@ -153,7 +221,7 @@ export async function requestProposedPatch(
 	const messages: Message[] = [
 		{
 			role: "system",
-			content: `You generate exact text edits for a safe patch loop. Return ONLY JSON: {"edits":[{"file":"src/file.ts","oldText":"exact text from file","newText":"replacement text","reason":"why"}]}. oldText must be copied verbatim and appear exactly once. Do not use markdown or unified diff.`,
+			content: `You generate exact text edits for a safe patch loop. Return ONLY compact JSON and nothing else. Your entire response must be under 1200 characters. Use this exact shape: {"edits":[{"file":"src/file.ts","oldText":"exact text from file","newText":"replacement text","reason":"why"}]}. Prefer one minimal edit. oldText must be copied verbatim and appear exactly once. oldText must include a full unique line or small block, not a repeated identifier/expression. Keep reason under 80 characters. Do not explain. Do not use markdown or unified diff. Do not include <think> tags or hidden reasoning. Stop immediately after the JSON object.`,
 		},
 		{
 			role: "user",
@@ -163,15 +231,24 @@ export async function requestProposedPatch(
 				approvedPatchIntent: intent,
 				files: fileContexts,
 				constraints: [
+					"Return only a single compact JSON object; no prose before or after it.",
+					"Do not include <think> tags, reasoning, markdown, or explanations.",
+					"Keep the whole response under 1200 characters.",
+					"Prefer exactly one edit when one edit can fix the failure.",
 					"Only edit files listed in approvedPatchIntent.targetFiles.",
-					"Use the smallest possible oldText/newText replacement.",
+					"Use the smallest unique oldText/newText replacement.",
+					"oldText must include a full line or small block that appears once in the file.",
+					"Keep oldText/newText short, but exact; do not include whole files.",
 					"Do not modify tests, config, dependencies, or validation commands unless explicitly included in targetFiles.",
 					"If exact oldText is unavailable, return an edit that will fail rather than guessing broadly.",
 				],
 			}),
 		},
 	];
-	const response = await provider.chat(messages, []);
+	const response = await provider.chat(messages, [], {
+		maxTokens: PROPOSED_PATCH_MAX_TOKENS,
+		responseFormat: "json_object",
+	});
 	const parsed = parseProposedPatch(response.content || "");
 	if (!parsed.valid || !parsed.data) {
 		throw new Error(

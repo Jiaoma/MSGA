@@ -4,6 +4,7 @@
  */
 
 import type {
+	ChatOptions,
 	ChatResponse,
 	ChatStreamChunk,
 	Message,
@@ -23,6 +24,7 @@ export class OpenAIProvider implements ModelProvider {
 	async chat(
 		messages: Message[],
 		tools?: ToolDefinition[],
+		options?: ChatOptions,
 	): Promise<ChatResponse> {
 		const url = `${this.config.baseUrl}/chat/completions`;
 		const headers: Record<string, string> = {
@@ -43,9 +45,13 @@ export class OpenAIProvider implements ModelProvider {
 				if ("tool_calls" in m && m.tool_calls) msg.tool_calls = m.tool_calls;
 				return msg;
 			}),
-			max_tokens: this.config.maxTokens,
+			max_tokens: options?.maxTokens ?? this.config.maxTokens,
 			temperature: this.config.temperature,
 		};
+
+		if (options?.responseFormat) {
+			body.response_format = { type: options.responseFormat };
+		}
 
 		if (tools && tools.length > 0) {
 			body.tools = tools.map((t) => ({
@@ -60,7 +66,10 @@ export class OpenAIProvider implements ModelProvider {
 		}
 
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 120_000);
+		const timeout = setTimeout(
+			() => controller.abort(),
+			this.config.requestTimeoutMs ?? 120_000,
+		);
 
 		let resp: Response;
 		try {
@@ -145,7 +154,10 @@ export class OpenAIProvider implements ModelProvider {
 		}
 
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 120_000);
+		const timeout = setTimeout(
+			() => controller.abort(),
+			this.config.requestTimeoutMs ?? 120_000,
+		);
 
 		let resp: Response;
 		try {

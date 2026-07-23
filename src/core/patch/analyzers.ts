@@ -1,7 +1,10 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
 	filterEditableFiles,
 	isSourceLikeFile,
 	normalizeRelativePath,
+	resolveInsideCwd,
 	unique,
 } from "./path-utils.js";
 import type {
@@ -48,8 +51,13 @@ export async function buildFailureReport(
 	mergeParts(parts, analyzeNpm(validation, ctx));
 	mergeParts(parts, analyzeStackTrace(validation, ctx));
 
+	const inferredSourceFiles = await inferSourceFilesFromTests(
+		parts.failingTests,
+		ctx,
+	);
 	const suspected = unique([
 		...parts.suspectedFiles,
+		...inferredSourceFiles,
 		...validation.failingFiles.map((f) => normalizeRelativePath(f, ctx.cwd)),
 	]).filter(Boolean);
 	const { allowed, disallowed } = filterEditableFiles(suspected, ctx);
@@ -235,6 +243,81 @@ function analyzeStackTrace(
 		evidence,
 		confidence: suspectedFiles.some(isSourceLikeFile) ? "high" : "medium",
 	};
+}
+
+async function inferSourceFilesFromTests(
+	failingTests: FailingTest[],
+	ctx: AnalyzeContext,
+): Promise<string[]> {
+	if (failingTests.length === 0) return [];
+	const inferred: string[] = [];
+	for (const test of failingTests) {
+		if (!test.file) continue;
+		const resolved = resolveInsideCwd(test.file, ctx.cwd);
+		if (!resolved) continue;
+		let content: string;
+		try {
+			content = await fs.readFile(resolved, "utf-8");
+		} catch {
+			continue;
+		}
+		const imported = extractRelativeImports(content);
+		for (const specifier of imported) {
+			const candidate = await resolveImportSpecifier(
+				resolved,
+				specifier,
+				ctx.cwd,
+			);
+			if (candidate && isSourceLikeFile(candidate)) inferred.push(candidate);
+		}
+	}
+	return unique(inferred);
+}
+
+function extractRelativeImports(content: string): string[] {
+	const imports: string[] = [];
+	const regex =
+		/(?:import\s+(?:[^"']+?\s+from\s+)?|export\s+[^"']+?\s+from\s+|import\s*\()(["'])(\.\.?\/[^"']+)\1/g;
+	for (const match of content.matchAll(regex)) {
+		if (match[2]) imports.push(match[2]);
+	}
+	return unique(imports);
+}
+
+async function resolveImportSpecifier(
+	importer: string,
+	specifier: string,
+	cwd: string,
+): Promise<string | null> {
+	const base = path.resolve(path.dirname(importer), specifier);
+	const withoutJsExtension = base.replace(/\.(?:mjs|cjs|js|jsx)$/, "");
+	const candidates = unique([
+		base,
+		withoutJsExtension,
+		`${withoutJsExtension}.ts`,
+		`${withoutJsExtension}.tsx`,
+		`${withoutJsExtension}.mts`,
+		`${withoutJsExtension}.cts`,
+		`${withoutJsExtension}.js`,
+		`${withoutJsExtension}.jsx`,
+		`${withoutJsExtension}.mjs`,
+		`${withoutJsExtension}.cjs`,
+		path.join(base, "index.ts"),
+		path.join(base, "index.tsx"),
+		path.join(base, "index.js"),
+	]);
+	for (const candidate of candidates) {
+		const relative = normalizeRelativePath(candidate, cwd);
+		const resolved = resolveInsideCwd(relative, cwd);
+		if (!resolved) continue;
+		try {
+			const stat = await fs.stat(resolved);
+			if (stat.isFile()) return relative;
+		} catch {
+			// try next candidate
+		}
+	}
+	return null;
 }
 
 function mergeParts(

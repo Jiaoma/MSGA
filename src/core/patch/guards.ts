@@ -54,7 +54,7 @@ export function reviewPatchIntent(
 		violations.push("PatchIntent has no target files.");
 	if (normalizedTargetFiles.length > opts.maxChangedFiles) {
 		riskScore += 25;
-		reasons.push(
+		violations.push(
 			`Patch targets ${normalizedTargetFiles.length} files, above max ${opts.maxChangedFiles}.`,
 		);
 	}
