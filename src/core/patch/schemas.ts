@@ -15,6 +15,16 @@ export const PatchOperationSchema = z.enum([
 	"dependency_fix",
 ]);
 
+const OptionalPositiveIntFromModelSchema = z.preprocess((value) => {
+	if (typeof value === "number" && Number.isInteger(value) && value > 0)
+		return value;
+	if (typeof value === "string" && value.trim() !== "") {
+		const parsed = Number(value);
+		if (Number.isInteger(parsed) && parsed > 0) return parsed;
+	}
+	return undefined;
+}, z.number().int().positive().optional());
+
 export const PatchIntentSchema = z.object({
 	targetFiles: z.array(z.string()).min(1),
 	changeType: z.enum([
@@ -32,8 +42,8 @@ export const PatchIntentSchema = z.object({
 	allowedOperations: z.array(PatchOperationSchema),
 	forbiddenOperations: z.array(z.string()),
 	riskLevel: z.enum(["low", "medium", "high"]),
-	maxChangedFiles: z.number().int().positive(),
-	maxChangedLines: z.number().int().positive().optional(),
+	maxChangedFiles: OptionalPositiveIntFromModelSchema,
+	maxChangedLines: OptionalPositiveIntFromModelSchema,
 });
 
 export const ProposedPatchSchema = z.object({

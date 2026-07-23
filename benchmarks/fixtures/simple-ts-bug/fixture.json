@@ -1,0 +1,9 @@
+{
+	"id": "simple-ts-bug",
+	"name": "Simple TypeScript logic bug",
+	"description": "A small arithmetic helper has a logic bug caught by Vitest.",
+	"goal": "Fix the failing tests without modifying tests or config.",
+	"checks": ["npx vitest run"],
+	"expectedChangedFiles": ["src/calc.ts"],
+	"tags": ["typescript", "vitest", "logic-bug"]
+}

@@ -33,10 +33,20 @@ export interface ProviderConfig {
 	maxTokens: number;
 	temperature: number;
 	contextWindow: number;
+	requestTimeoutMs?: number;
+}
+
+export interface ChatOptions {
+	maxTokens?: number;
+	responseFormat?: "json_object";
 }
 
 export interface ModelProvider {
-	chat(messages: Message[], tools?: ToolDefinition[]): Promise<ChatResponse>;
+	chat(
+		messages: Message[],
+		tools?: ToolDefinition[],
+		options?: ChatOptions,
+	): Promise<ChatResponse>;
 	chatStream(
 		messages: Message[],
 		tools?: ToolDefinition[],

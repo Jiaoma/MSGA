@@ -31,6 +31,44 @@ describe("patch schemas", () => {
 		expect(result.valid).toBe(true);
 	});
 
+	it("parses PatchIntent without maxChangedFiles", () => {
+		const result = parsePatchIntent(
+			JSON.stringify({
+				targetFiles: ["src/foo.ts"],
+				changeType: "bug_fix",
+				reason: "fix parser",
+				expectedEffect: "test passes",
+				failureEvidence: ["AssertionError"],
+				allowedOperations: ["edit_function"],
+				forbiddenOperations: ["Do not modify tests"],
+				riskLevel: "low",
+				maxChangedLines: 20,
+			}),
+		);
+		expect(result.valid).toBe(true);
+		expect(result.data?.maxChangedFiles).toBeUndefined();
+	});
+
+	it("coerces numeric string PatchIntent budgets", () => {
+		const result = parsePatchIntent(
+			JSON.stringify({
+				targetFiles: ["src/foo.ts"],
+				changeType: "bug_fix",
+				reason: "fix parser",
+				expectedEffect: "test passes",
+				failureEvidence: ["AssertionError"],
+				allowedOperations: ["edit_function"],
+				forbiddenOperations: ["Do not modify tests"],
+				riskLevel: "low",
+				maxChangedFiles: "1",
+				maxChangedLines: "20",
+			}),
+		);
+		expect(result.valid).toBe(true);
+		expect(result.data?.maxChangedFiles).toBe(1);
+		expect(result.data?.maxChangedLines).toBe(20);
+	});
+
 	it("rejects invalid operations", () => {
 		const result = parsePatchIntent(
 			JSON.stringify({
